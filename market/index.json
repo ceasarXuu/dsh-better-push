@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "title": {
+    "en": "ceasarXuu DSH plugins",
+    "zh": "ceasarXuu 的 DSH 插件"
+  },
+  "description": {
+    "en": "Small, self-contained DeepSeek Harness plugins.",
+    "zh": "轻量、自包含的 DeepSeek Harness 插件。"
+  },
+  "plugins": [
+    {
+      "name": "@ceasarxuu/dsh-better-push",
+      "title": {
+        "en": "Better Push — macOS notifications",
+        "zh": "Better Push — macOS 系统通知"
+      },
+      "description": {
+        "en": "Native macOS notifications for turn completion, approvals, questions, errors, background jobs, subagents and workflows; click a banner to open its Session.",
+        "zh": "回合完成、审批、提问、出错、后台任务、子代理与工作流结束时发送 macOS 原生通知；点击横幅打开对应会话。"
+      },
+      "icon": "icons/better-push.svg",
+      "author": "ceasarXuu",
+      "homepage": "https://github.com/ceasarXuu/dsh-better-push#readme",
+      "repository": {
+        "url": "https://github.com/ceasarXuu/dsh-better-push"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793228787,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ceasarXuu/dsh-better-push",
+            "commit": "6f6da7bf1e4fa71d415545f40356504df4d0eec2"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.3 <0.3.0"
+          }
+        }
+      ]
+    }
+  ]
+}

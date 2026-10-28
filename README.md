@@ -39,30 +39,45 @@ Requires **DeepSeek Harness 0.2.1-rc.3 or newer (below 0.3.0)** on **macOS**,
 with the desktop or web surface.
 
 This repository is the distribution for now — the plugin is **not published to
-npm yet**. Both install paths below take the package straight from GitHub.
+npm**. DSH installs it from GitHub in any of these three ways; pick one.
 
-- **Plugin Manager:** Settings → Plugins → Add → paste
-  `https://github.com/ceasarXuu/dsh-better-push` (the manager also accepts
-  `github:ceasarXuu/dsh-better-push`), then keep it enabled.
-- **CLI:** quit the app first (the profile is locked while it runs), then:
+**1. Discover / plugin market (recommended — version pinned to a commit).**
+Add this index URL once in Settings → Plugins → Discover → market sources, then
+install "Better Push — macOS notifications" from the list:
 
-  ```sh
-  dsh plugin --profile desktop add github:ceasarXuu/dsh-better-push
-  ```
+```
+https://raw.githubusercontent.com/ceasarXuu/dsh-better-push/main/market/index.json
+```
 
-  From a local checkout, `dsh plugin --profile desktop add /absolute/path/to/dsh-better-push`
-  links the directory instead.
+`market/index.json` is a format-1 DSH plugin-market index whose entry is a
+`git` source pinned to an exact commit, so the same URL also works hosted
+anywhere else (GitHub Pages, object storage).
+
+**2. Plugin Manager → Add.** Paste the repository URL or the pnpm shorthand:
+
+```
+https://github.com/ceasarXuu/dsh-better-push
+github:ceasarXuu/dsh-better-push
+```
+
+or the packed release tarball (exactly what `npm pack` produces):
+
+```
+https://github.com/ceasarXuu/dsh-better-push/releases/download/v0.1.0/ceasarxuu-dsh-better-push-0.1.0.tgz
+```
+
+**3. CLI.** Quit the app first (the profile is locked while it runs), then:
+
+```sh
+dsh plugin --profile desktop add github:ceasarXuu/dsh-better-push
+# or a local checkout:
+dsh plugin --profile desktop add /absolute/path/to/dsh-better-push
+```
 
 Restart the app once. Settings live in the profile's `cordis.patch.yml` under
-row id `better-push`.
-
-### macOS permission
-
-The first banner makes macOS ask whether **DeepSeek Harness** may send
-notifications. If you misclicked, re-enable it in **System Settings →
-Notifications → DeepSeek Harness**. Focus modes still win: while a Focus is on,
-banners are delivered silently to Notification Center.
-
+row id `better-push`. Updating = install the newer version the same way (the
+market index is the only source that pins a commit; `github:` installs track
+the default branch head).
 ## Settings
 
 Everything is editable in **Settings → 通知 / Notifications** (its own section

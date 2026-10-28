@@ -35,29 +35,42 @@ agent 向你提问、出错、后台任务 / 子代理 / 工作流结束时，ma
 需要 **DeepSeek Harness 0.2.1-rc.3 及以上（低于 0.3.0）**、**macOS**，并且有
 桌面端或 Web 界面。
 
-目前**没有发布到 npm**，这个 GitHub 仓库就是分发渠道，下面两种方式都直接从
-GitHub 安装。
+目前**没有发布到 npm**，这个 GitHub 仓库就是分发渠道。DSH 支持下面三种安装方式，
+任选其一。
 
-- **插件管理器：** 设置 → 插件 → 添加 → 粘贴
-  `https://github.com/ceasarXuu/dsh-better-push`（也接受
-  `github:ceasarXuu/dsh-better-push`），然后保持启用。
-- **命令行：** 先完全退出应用（运行期间 profile 会被锁定），然后：
+**1. 插件市场（推荐，版本锁定到具体 commit）。** 在 设置 → 插件 → 发现（Discover）
+里把这个索引地址添加为市场源，然后从列表里安装「Better Push — macOS 系统通知」：
 
-  ```sh
-  dsh plugin --profile desktop add github:ceasarXuu/dsh-better-push
-  ```
+```
+https://raw.githubusercontent.com/ceasarXuu/dsh-better-push/main/market/index.json
+```
 
-  从本地目录安装用绝对路径：
-  `dsh plugin --profile desktop add /绝对路径/dsh-better-push`。
+`market/index.json` 是 DSH 插件市场 format 1 索引，条目是锁定到具体 commit 的
+`git` 源，所以这个文件放到任何静态 HTTPS 托管上也能用。
+
+**2. 插件管理器 → 添加。** 粘贴仓库地址或 pnpm 简写：
+
+```
+https://github.com/ceasarXuu/dsh-better-push
+github:ceasarXuu/dsh-better-push
+```
+
+或直接粘贴 release 里的打包文件（就是 `npm pack` 的产物）：
+
+```
+https://github.com/ceasarXuu/dsh-better-push/releases/download/v0.1.0/ceasarxuu-dsh-better-push-0.1.0.tgz
+```
+
+**3. 命令行。** 先完全退出应用（运行期间 profile 会被锁定），然后：
+
+```sh
+dsh plugin --profile desktop add github:ceasarXuu/dsh-better-push
+# 或从本地目录安装：
+dsh plugin --profile desktop add /绝对路径/dsh-better-push
+```
 
 重启一次应用。配置保存在 profile 的 `cordis.patch.yml` 中，行 id 为 `better-push`。
-
-### macOS 权限
-
-第一次弹横幅时，macOS 会询问是否允许 **DeepSeek Harness** 发送通知。如果点错了，
-到 **系统设置 → 通知 → DeepSeek Harness** 重新打开。专注模式优先级更高：专注模式
-开启时横幅只会静默进入通知中心。
-
+升级用同样的方式安装新版本（只有市场索引锁定 commit，`github:` 方式跟随默认分支头）。
 ## 设置
 
 全部在 **设置 → 通知** 里改（设置侧栏里独立的一节，和「通用设置」「内置插件」同级；
