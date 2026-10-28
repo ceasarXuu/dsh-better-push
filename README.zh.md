@@ -23,7 +23,7 @@ agent 向你提问、出错、后台任务 / 子代理 / 工作流结束时，ma
 | agent 向你提问 | 会话名 + 问题内容 | 开 |
 | 回合失败 / 中断 / 上下文耗尽 | 提供方或回合错误 | 开 |
 | 后台任务结束 | 任务标签 + 状态（`run_in_background`、被转后台的命令） | 开 |
-| 子代理回合结束 | 子代理会话名 + 预设 | 开 |
+| 子代理回合结束 | 父会话名 + 预设；点击打开父会话 | 关 |
 | 工作流运行结束 | 工作流名 + 结束原因 | 开 |
 | 测试通知 | 设置页或 `POST /plugin/better-push/test` 触发 | — |
 
@@ -55,20 +55,22 @@ agent 向你提问、出错、后台任务 / 子代理 / 工作流结束时，ma
 
 ## 设置
 
-全部在 **设置 → 插件 → Better Push** 里改（表单由插件的配置 schema 自动生成），
-写回 profile patch。每个开关相互独立。
+全部在 **设置 → 通知** 里改（设置侧栏里独立的一节，和「通用设置」「内置插件」同级；
+同一个表单也会出现在「设置 → 插件 → 本插件」的行配置里），写回 profile patch。
+每个开关相互独立，改动立即生效：设置页写入 profile patch，loader 把 `volatile`
+字段提交给正在运行的插件，浏览器半边下一次轮询就拿到新策略。
 
 | 键 | 默认 | 含义 |
 |---|---|---|
 | `enabled` | `true` | 系统通知总开关。 |
-| `whenBackgroundOnly` | `true` | 只在 DSH 窗口不在前台时通知。关掉后你盯着屏幕也会通知。 |
+| `notifyInForeground` | `true` | 窗口在前台时也通知；关掉后只在 DSH 不在前台时通知。 |
 | `sound` | `true` | 通知带提示音。 |
 | `turnEnd` | `true` | 回合完成时通知。 |
 | `approvals` | `true` | 工具调用等待审批时通知。 |
 | `questions` | `true` | agent 提问时通知。 |
 | `errors` | `true` | 回合失败、被中断、上下文耗尽时通知。 |
 | `jobs` | `true` | 后台任务结束时通知。 |
-| `subagents` | `true` | 子代理回合结束时通知。 |
+| `subagents` | `false` | 子代理 / Agent Team teammate 回合结束时通知。默认关闭：团队并行跑时会每次子回合都弹。 |
 | `workflows` | `true` | 工作流运行结束时通知。 |
 | `preview` | `true` | 在回合完成通知里带一行回复摘要。 |
 | `minTurnSeconds` | `0` | 短于该秒数的回合完成不通知（0 = 每个回合都通知）。 |

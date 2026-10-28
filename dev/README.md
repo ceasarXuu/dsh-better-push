@@ -27,8 +27,9 @@ ln -s "$PWD" ~/.dsh/profiles/web/node_modules/@ceasarxuu/dsh-better-push
 dsh web --patch ./dev/patch.yml --port 6280 --no-open
 ```
 
-`dev/patch.yml` inserts the plugin row with `whenBackgroundOnly: false` and
-`sound: false`, so a foreground browser still shows the banner path. The
+`dev/patch.yml` inserts the plugin row with foreground notifications and the
+subagent category switched on and the sound off, so a foreground browser still
+exercises the banner path. The
 command prints a tokenized URL (`http://127.0.0.1:6280/?token=…`).
 
 Check the host half:
@@ -38,6 +39,18 @@ curl -s http://127.0.0.1:6280/plugin/better-push/state | jq
 ```
 
 ## 3. Verify the browser half (CDP)
+
+> Caveat: a `--patch` launcher overlay is applied *after* the profile layer, so
+> its `config:` shadows anything the settings page writes to the profile patch.
+> To verify that a switch actually persists and takes effect, put the row in the
+> `web` profile's own `cordis.patch.yml` instead of the overlay.
+
+For the settings surface (the **Notifications** section, its 15 switches and
+the test button) and click-to-open-session:
+
+```sh
+node dev/verify-settings.mjs "http://127.0.0.1:6280/?token=<token>" 9333
+```
 
 Headless Chrome cannot display banners, so the verifier replaces
 `window.Notification` before any app script runs and records every construction:

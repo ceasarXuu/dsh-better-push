@@ -25,7 +25,7 @@ window comes forward on the Session that fired it.
 | Agent asking a question | Session name + the question | on |
 | Turn failed / interrupted / out of context | The provider or turn error | on |
 | Background job settled | Job label + status (`run_in_background` commands, promoted commands) | on |
-| Subagent turn finished | Subagent Session name + preset | on |
+| Subagent turn finished | Parent conversation name + preset; click opens the parent Session | off |
 | Workflow run finished | Workflow name + stop reason | on |
 | Test notification | Pushed from the settings page or `POST /plugin/better-push/test` | — |
 
@@ -61,21 +61,24 @@ banners are delivered silently to Notification Center.
 
 ## Settings
 
-Everything is editable in **Settings → Plugins → Better Push** (the form is
-generated from the plugin's config schema) and stored in the profile patch.
-Every switch is independent.
+Everything is editable in **Settings → 通知 / Notifications** (its own section
+in the settings sidebar, next to General and Plugins; the same form also appears
+in Settings → Plugins → the plugin's row) and stored in the profile patch. Every
+switch is independent, and changes apply immediately: the settings page writes
+the profile patch, the loader commits `volatile` fields into the running plugin,
+and the browser half picks the new policy up on its next poll.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Master switch for all system notifications. |
-| `whenBackgroundOnly` | `true` | Only notify while the DSH window is unfocused. Turn off to notify even while you watch. |
+| `notifyInForeground` | `true` | Also notify while the DSH window is focused. Turn off to only notify from the background. |
 | `sound` | `true` | Play a sound with each notification. |
 | `turnEnd` | `true` | Notify when a turn finishes. |
 | `approvals` | `true` | Notify when a tool call waits for approval. |
 | `questions` | `true` | Notify when the agent asks you a question. |
 | `errors` | `true` | Notify on failed, interrupted or out-of-context turns. |
 | `jobs` | `true` | Notify when a background job settles. |
-| `subagents` | `true` | Notify when a subagent turn finishes. |
+| `subagents` | `false` | Notify when a subagent / Agent Teams teammate turn finishes. Off by default: a busy team would otherwise ping on every child turn. |
 | `workflows` | `true` | Notify when a workflow run finishes. |
 | `preview` | `true` | Put a short assistant-reply preview in the finished-turn body. |
 | `minTurnSeconds` | `0` | Skip finished-turn notifications shorter than this (0 = notify every turn). |

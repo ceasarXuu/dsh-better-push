@@ -79,9 +79,9 @@ export const Config = Schema.object({
   enabled: Schema.boolean()
     .default(true)
     .description('Master switch for macOS system notifications.').volatile(),
-  whenBackgroundOnly: Schema.boolean()
+  notifyInForeground: Schema.boolean()
     .default(true)
-    .description('Only notify while the DeepSeek Harness window is not focused.').volatile(),
+    .description('Also notify while the DeepSeek Harness window is focused. Off restricts notifications to the background.').volatile(),
   sound: Schema.boolean()
     .default(true)
     .description('Play a sound with each notification.').volatile(),
@@ -101,8 +101,8 @@ export const Config = Schema.object({
     .default(true)
     .description('Notify when a background job settles.').volatile(),
   subagents: Schema.boolean()
-    .default(true)
-    .description('Notify when a subagent turn finishes.').volatile(),
+    .default(false)
+    .description('Notify when a subagent (or Agent Teams teammate) turn finishes. Off by default: busy teams would otherwise ping on every child turn.').volatile(),
   workflows: Schema.boolean()
     .default(true)
     .description('Notify when a workflow run finishes.').volatile(),
@@ -223,6 +223,48 @@ export function sessionLabel(session, titles) {
   return 'DSH'
 }
 
+/** Remember the header fields a notification click needs. */
+export function rememberSession(state, session) {
+  const header = session?.header
+  if (header === null || typeof header !== 'object' || typeof header.id !== 'string') return
+  const previous = state.sessions.get(header.id)
+  const next = {
+    origin: header.origin,
+    parentSession: header.parentSession,
+    cwd: header.cwd,
+    agentPreset: header.agentPreset,
+  }
+  if (previous !== undefined && previous.origin === next.origin && previous.parentSession === next.parentSession && previous.cwd === next.cwd) return
+  state.sessions.set(header.id, next)
+}
+
+/**
+ * Resolve the Session a notification click should open: the root of a
+ * subagent/teammate lineage, since a child Session is not navigable in the
+ * workspace and its parent is the conversation the user actually had.
+ */
+export function rootSessionId(state, id, header) {
+  let current = id
+  let info = header !== undefined && header !== null && typeof header === 'object' ? header : state.sessions.get(id)
+  let guard = 0
+  while (info !== undefined && info.origin === 'subagent' && typeof info.parentSession === 'string' && guard < 8) {
+    current = info.parentSession
+    info = state.sessions.get(current)
+    guard += 1
+  }
+  return current
+}
+
+/** Display label for a Session id known to the notifier. */
+export function labelForSession(state, id, session) {
+  if (typeof id !== 'string') return undefined
+  const title = state.titles.get(id)
+  if (typeof title === 'string' && title.trim().length > 0) return summarize(title, 60)
+  const cwd = state.sessions.get(id)?.cwd ?? session?.header?.cwd
+  if (typeof cwd === 'string' && cwd.length > 0) return basename(cwd)
+  return undefined
+}
+
 /** Stable delivery key for dedupe and notification replacement. */
 export function dedupeKey(spec) {
   return `${spec.sessionId ?? 'app'}:${spec.kind}`
@@ -267,7 +309,8 @@ export function fallbackCopy(item, config) {
  */
 export function createState(config, options = {}) {
   const state = {
-    config: normalizeConfig(config),
+    /** Raw config as handed to `apply`: volatile fields are reactive refs. */
+    rawConfig: config ?? {},
     /** When this plugin instance bound; lets a hot reload be told apart. */
     createdAt: Date.now(),
     /** Monotonic notification id; the client cursor is the last id it read. */
@@ -278,6 +321,8 @@ export function createState(config, options = {}) {
     clients: new Map(),
     /** sessionId → Session title, fed by the `session/title` event. */
     titles: new Map(),
+    /** sessionId → the few header fields needed to resolve a click target. */
+    sessions: new Map(),
     /** sessionId → epoch ms of the current `turn/start`. */
     turns: new Map(),
     /** sessionId → last assistant reply preview. */
@@ -298,7 +343,19 @@ export function createState(config, options = {}) {
     deliver: options.deliver ?? ((item) => deliverViaOsascript(item, state.config)),
     /** Everything handed to the fallback, for diagnostics and tests. */
     delivered: [],
+    /** Last client-reported click/navigation outcome, for support diagnostics. */
+    clientDiag: undefined,
   }
+  // The settings page edits the profile patch, and the loader commits `.volatile()`
+  // fields into the running fiber in place (`loader/volatile-update`) without a
+  // reload. Reading the refs on every access is what makes a switch take effect
+  // immediately instead of on the next restart.
+  Object.defineProperty(state, 'config', {
+    enumerable: true,
+    get() {
+      return normalizeConfig(state.rawConfig)
+    },
+  })
   return state
 }
 
@@ -307,7 +364,7 @@ export function publicConfig(state) {
   const config = state.config
   return {
     enabled: config.enabled !== false,
-    whenBackgroundOnly: config.whenBackgroundOnly !== false,
+    notifyInForeground: config.notifyInForeground !== false,
     sound: config.sound !== false,
     preview: config.preview !== false,
   }
@@ -421,6 +478,7 @@ export function observeSessionEvent(state, session, event) {
   const isSubagent = session?.header?.origin === 'subagent'
   const time = typeof event.time === 'number' ? event.time : Date.now()
   const data = event.data ?? {}
+  rememberSession(state, session)
 
   switch (event.type) {
     case 'session/title': {
@@ -451,10 +509,12 @@ export function observeSessionEvent(state, session, event) {
     case 'approval/asked': {
       if (config.approvals === false) return
       const toolName = typeof data.toolName === 'string' ? data.toolName : 'tool call'
+      const approvalTarget = id === undefined ? undefined : rootSessionId(state, id, session?.header)
       pushNotification(state, {
         kind: 'approval',
         sessionId: id,
-        sessionTitle: sessionLabel(session, state.titles),
+        ...(approvalTarget !== undefined && approvalTarget !== id ? { openSessionId: approvalTarget } : {}),
+        sessionTitle: labelForSession(state, approvalTarget ?? id, session),
         detail: toolName,
         approvalId: typeof data.id === 'string' ? data.id : undefined,
         cwd: session?.header?.cwd,
@@ -505,10 +565,14 @@ function onTurnEnd(state, session, { id, isSubagent, reason, durationMs, time })
 
   if (isSubagent) {
     if (config.subagents === false) return
+    const rootId = rootSessionId(state, id, session?.header)
     pushNotification(state, {
       kind: 'subagent',
       sessionId: id,
-      sessionTitle: sessionLabel(session, state.titles),
+      // A child Session is not navigable in the workspace; the click opens the
+      // conversation the user actually owns.
+      openSessionId: rootId,
+      sessionTitle: labelForSession(state, rootId, rootId === id ? session : undefined),
       detail: typeof session?.header?.agentPreset === 'string' ? session.header.agentPreset : undefined,
       status: typeof kind === 'string' ? kind : undefined,
       durationMs,
@@ -595,10 +659,12 @@ export function observeJobEvent(state, event, titles) {
   const owner = typeof job.owner === 'string' ? job.owner : undefined
   const label = typeof job.label === 'string' && job.label.length > 0 ? summarize(job.label, 80) : undefined
   const kind = typeof job.kind === 'string' ? job.kind : 'job'
+  const rootId = owner === undefined ? undefined : rootSessionId(state, owner)
   return pushNotification(state, {
     kind: 'job',
     sessionId: owner,
-    sessionTitle: owner === undefined ? undefined : titles.get(owner),
+    ...(rootId !== undefined && rootId !== owner ? { openSessionId: rootId } : {}),
+    sessionTitle: rootId === undefined ? undefined : labelForSession(state, rootId),
     detail: label ?? kind,
     status: typeof job.status === 'string' ? job.status : undefined,
   })
@@ -613,10 +679,12 @@ export function notifyQuestion(state, request) {
   const sessionId = typeof header?.id === 'string' ? header.id : undefined
   const first = Array.isArray(request?.questions) ? request.questions[0] : undefined
   const detail = typeof first?.question === 'string' ? summarize(first.question, 160) : 'The agent asked a question.'
+  const rootId = sessionId === undefined ? undefined : rootSessionId(state, sessionId, header)
   return pushNotification(state, {
     kind: 'question',
     sessionId,
-    sessionTitle: session === undefined ? undefined : sessionLabel(session, state.titles),
+    ...(rootId !== undefined && rootId !== sessionId ? { openSessionId: rootId } : {}),
+    sessionTitle: rootId === undefined ? (session === undefined ? undefined : sessionLabel(session, state.titles)) : labelForSession(state, rootId, session),
     detail,
     cwd: header?.cwd,
   })
@@ -663,7 +731,8 @@ export function stateSnapshot(state) {
     loadedAt: state.createdAt,
     config: publicConfig(state),
     clients: activeClients(state).length,
-    clientIds: activeClients(state).map((client) => `${client.id}:${client.permission}`),
+    clientIds: activeClients(state).map((client) => `${client.id}:${client.permission}${client.workspace === true ? ':ws' : ''}`),
+    clientDiag: state.clientDiag ?? null,
     cursor: state.counter,
     buffered: state.items.length,
     pushed: state.pushedCount,
@@ -689,7 +758,10 @@ export async function handleRequest(state, ctx, req, res) {
     const clientId = url.searchParams.get('client') ?? 'anonymous'
     const permission = url.searchParams.get('permission') ?? 'default'
     const requested = Number(url.searchParams.get('since') ?? '-1')
-    state.clients.set(clientId, { seen: Date.now(), permission })
+    // `ws=1` reports that the renderer found the workspace-navigation service,
+    // which is what a notification click needs to open the Session.
+    const workspace = url.searchParams.get('ws') === '1'
+    state.clients.set(clientId, { seen: Date.now(), permission, workspace })
     const latest = state.counter
     // A fresh client starts at the current cursor: stale notifications must not
     // replay after a reload.
@@ -709,6 +781,22 @@ export async function handleRequest(state, ctx, req, res) {
 
   if (method === 'GET' && path === '/health') {
     sendJson(res, 200, { ok: true, name })
+    return
+  }
+
+  if (method === 'POST' && path === '/diag') {
+    const body = await readJson(req)
+    state.clientDiag = {
+      at: Date.now(),
+      workspace: body.workspace === true,
+      notificationPermission: typeof body.permission === 'string' ? body.permission : undefined,
+      lastClick: body.lastClick === null || typeof body.lastClick !== 'object' ? undefined : {
+        sessionId: typeof body.lastClick.sessionId === 'string' ? body.lastClick.sessionId : undefined,
+        ok: body.lastClick.ok === true,
+        error: typeof body.lastClick.error === 'string' ? body.lastClick.error : undefined,
+      },
+    }
+    sendJson(res, 200, { ok: true })
     return
   }
 
@@ -740,6 +828,7 @@ export function apply(ctx, config) {
   const state = createState(config)
 
   ctx.on('session/created', (session) => {
+    rememberSession(state, session)
     const id = sessionIdOf(session)
     if (id !== undefined) state.titles.set(id, sessionLabel(session, state.titles))
   })
@@ -756,6 +845,7 @@ export function apply(ctx, config) {
     state.titles.delete(id)
     state.turns.delete(id)
     state.previews.delete(id)
+    state.sessions.delete(id)
   })
   // A question waterfall: notify, then delegate to the real answerer. Never
   // answer it here — returning an answer would steal the question from the UI.

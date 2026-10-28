@@ -8,6 +8,7 @@ import {
   handleRequest,
   inQuietHours,
   messageText,
+  normalizeConfig,
   observeJobEvent,
   observeSessionEvent,
   parseQuietHours,
@@ -26,8 +27,8 @@ function defaults(overrides = {}) {
 }
 
 /** A Session-shaped object (only the fields the plugin reads). */
-function fakeSession({ id = 'session-1', cwd = '/Users/me/projects/demo-app', origin, agentPreset } = {}) {
-  return { header: { id, cwd, origin, agentPreset } }
+function fakeSession({ id = 'session-1', cwd = '/Users/me/projects/demo-app', origin, agentPreset, parentSession } = {}) {
+  return { header: { id, cwd, origin, agentPreset, parentSession } }
 }
 
 /** Event-shaped object as `Session.append` publishes it. */
@@ -186,16 +187,55 @@ test('minTurnSeconds skips quick turns', () => {
   assert.equal(state.items.length, 1)
 })
 
-test('subagent sessions notify as subagents, and the switch turns them off', () => {
-  const state = stateWithClient()
+test('subagent notifications are off by default and notify when switched on', () => {
   const subagent = fakeSession({ id: 'sub-1', origin: 'subagent', agentPreset: 'reviewer' })
-  observeSessionEvent(state, subagent, evt('turn/end', { turn: 1, reason: { kind: 'completed' } }, 1_000))
-  assert.equal(state.items[0].kind, 'subagent')
-  assert.equal(state.items[0].detail, 'reviewer')
 
-  const quiet = stateWithClient(defaults({ subagents: false }))
+  // Default: a busy Agent Team must not ping on every child turn.
+  const quiet = stateWithClient(defaults())
+  assert.equal(normalizeConfig(defaults()).subagents, false)
   observeSessionEvent(quiet, subagent, evt('turn/end', { turn: 1, reason: { kind: 'completed' } }, 1_000))
   assert.equal(quiet.items.length, 0)
+
+  const loud = stateWithClient(defaults({ subagents: true }))
+  observeSessionEvent(loud, subagent, evt('turn/end', { turn: 1, reason: { kind: 'completed' } }, 1_000))
+  assert.equal(loud.items.length, 1)
+  assert.equal(loud.items[0].kind, 'subagent')
+  assert.equal(loud.items[0].detail, 'reviewer')
+})
+
+test('a subagent notification clicks through to the parent conversation', () => {
+  const state = stateWithClient(defaults({ subagents: true }))
+  const parent = fakeSession({ id: 'parent-1', cwd: '/Users/me/projects/demo-app' })
+  observeSessionEvent(state, parent, evt('session/title', { title: 'Refactor the parser' }, 1_000))
+  // The child session announces itself through a normal event first.
+  const child = fakeSession({ id: 'child-1', origin: 'subagent', agentPreset: 'reviewer', parentSession: 'parent-1' })
+  observeSessionEvent(state, child, evt('turn/start', { turn: 1 }, 1_100))
+  observeSessionEvent(state, child, evt('turn/end', { turn: 1, reason: { kind: 'completed' } }, 2_000))
+
+  const item = state.items.at(-1)
+  assert.equal(item.kind, 'subagent')
+  assert.equal(item.sessionId, 'child-1')
+  assert.equal(item.openSessionId, 'parent-1')
+  assert.equal(item.sessionTitle, 'Refactor the parser')
+  assert.equal(item.detail, 'reviewer')
+})
+
+test('a background job owned by a subagent opens the parent conversation', () => {
+  const state = stateWithClient()
+  const parent = { header: { id: 'parent-2', cwd: '/Users/me/projects/demo-app' } }
+  observeSessionEvent(state, parent, evt('session/title', { title: 'Ship the plugin' }, 1_000))
+  observeSessionEvent(state, fakeSession({ id: 'child-2', origin: 'subagent', parentSession: 'parent-2' }), evt('step/start', { turn: 1, step: 1 }, 1_100))
+  observeJobEvent(state, {
+    type: 'settled',
+    awaited: false,
+    cause: 'producer',
+    job: { id: 'job-9', kind: 'bash', label: 'pnpm test', status: 'completed', owner: 'child-2' },
+  }, state.titles)
+  const item = state.items.at(-1)
+  assert.equal(item.kind, 'job')
+  assert.equal(item.sessionId, 'child-2')
+  assert.equal(item.openSessionId, 'parent-2')
+  assert.equal(item.sessionTitle, 'Ship the plugin')
 })
 
 test('duplicate turn-end notifications are coalesced', () => {
@@ -307,6 +347,32 @@ test('quiet hours suppress notifications entirely', () => {
   assert.equal(state.lastSkip, 'quiet-hours')
 })
 
+test('a volatile config write takes effect without a reload', () => {
+  // What the loader hands `apply`: volatile fields are reactive refs updated in
+  // place by the settings write (`loader/volatile-update`).
+  let live = { enabled: true, subagents: false }
+  const ref = { get: () => live.subagents }
+  const state = createState({
+    ...defaults(),
+    enabled: { get: () => live.enabled },
+    subagents: ref,
+  }, { deliver: (item) => state.delivered.push(item) })
+  state.clients.set('client-1', { seen: Date.now(), permission: 'granted' })
+
+  const child = fakeSession({ id: 'child-1', origin: 'subagent', parentSession: 'parent-1' })
+  observeSessionEvent(state, child, evt('turn/end', { turn: 1, reason: { kind: 'completed' } }, 1_000))
+  assert.equal(state.items.length, 0)
+
+  // The settings page flips the switch; the same instance must honor it.
+  live = { enabled: true, subagents: true }
+  observeSessionEvent(state, child, evt('turn/end', { turn: 2, reason: { kind: 'completed' } }, 5_000))
+  assert.equal(state.items.length, 1)
+
+  live = { enabled: false, subagents: true }
+  observeSessionEvent(state, fakeSession({ id: 'session-2' }), evt('turn/end', { turn: 1, reason: { kind: 'completed' } }, 6_000))
+  assert.equal(state.items.length, 1)
+})
+
 test('a disabled plugin emits nothing', () => {
   const state = stateWithClient(defaults({ enabled: false }))
   observeSessionEvent(state, fakeSession(), evt('turn/end', { turn: 1, reason: { kind: 'completed' } }, 1_000))
@@ -352,7 +418,7 @@ test('a fresh poll returns the cursor without replaying history', async () => {
   const payload = JSON.parse(res.out.body)
   assert.equal(payload.cursor, 1)
   assert.deepEqual(payload.items, [])
-  assert.equal(payload.config.whenBackgroundOnly, true)
+  assert.equal(payload.config.notifyInForeground, true)
 })
 
 test('a follow-up poll returns only items after the cursor', async () => {
@@ -384,6 +450,30 @@ test('the state endpoint reports clients, counters and config', async () => {
   assert.equal(payload.clients, 1)
   assert.equal(payload.config.sound, true)
   assert.equal(stateSnapshot(state).name, 'better-push')
+})
+
+test('clients report workspace navigation availability and click outcomes', async () => {
+  const state = stateWithClient()
+  const pollRes = fakeRes()
+  await handleRequest(state, {}, fakeReq('/plugin/better-push/poll?client=c1&since=0&permission=granted&ws=1'), pollRes)
+
+  const stateRes = fakeRes()
+  await handleRequest(state, {}, fakeReq('/plugin/better-push/state'), stateRes)
+  assert.ok(JSON.parse(stateRes.out.body).clientIds.includes('c1:granted:ws'))
+
+  const diagRes = fakeRes()
+  await handleRequest(state, {}, fakeReq('/plugin/better-push/diag', {
+    method: 'POST',
+    body: JSON.stringify({ workspace: true, permission: 'granted', lastClick: { sessionId: 'session-1', ok: false, error: 'no binding' } }),
+  }), diagRes)
+  assert.equal(JSON.parse(diagRes.out.body).ok, true)
+
+  const afterRes = fakeRes()
+  await handleRequest(state, {}, fakeReq('/plugin/better-push/state'), afterRes)
+  const after = JSON.parse(afterRes.out.body)
+  assert.equal(after.clientDiag.lastClick.ok, false)
+  assert.equal(after.clientDiag.lastClick.error, 'no binding')
+  assert.equal(after.clientDiag.workspace, true)
 })
 
 test('the test endpoint pushes a notification through the active channel', async () => {
