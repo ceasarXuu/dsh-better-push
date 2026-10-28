@@ -1,0 +1,31 @@
+# dsh-better-push — bundle layer.
+#
+# One host row. It watches every live Session and serves the browser half's
+# poll route under `/plugin/better-push`. The browser half is discovered from
+# `dsh.client` in package.json; it shows the native macOS banners and handles
+# click-to-open-session.
+#
+# The row's `config` is the plugin's settings document and renders
+# automatically in Settings → Plugins. A profile patch for row id
+# `better-push` replaces this whole `config` object, so a patch that changes one
+# switch has to restate the keys it keeps. Every key is optional here: the
+# defaults live in the plugin's Config schema (index.js).
+#
+#   enabled              master switch (default true)
+#   whenBackgroundOnly   only notify while the DSH window is unfocused (true)
+#   sound                play the macOS sound (true)
+#   turnEnd              notify when a turn finishes (true)
+#   approvals            notify when a tool call waits for approval (true)
+#   questions            notify when the agent asks a question (true)
+#   errors               notify on failed/interrupted/out-of-context turns (true)
+#   jobs                 notify when a background job settles (true)
+#   subagents            notify when a subagent turn finishes (true)
+#   workflows            notify when a workflow run finishes (true)
+#   preview              put a short assistant-reply preview in the body (true)
+#   minTurnSeconds       skip shorter turns at the finished notification (0)
+#   quietHours           'HH:MM-HH:MM' local quiet window (empty = off)
+#   fallbackWhenNoClient use osascript when no window is attached (true)
+#   fallbackSoundName    osascript sound name (Glass)
+- insert:
+    - id: better-push
+      name: '@ceasarxuu/dsh-better-push'

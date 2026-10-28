@@ -1,0 +1,11 @@
+# Development overlay for a `dsh web` instance booted from the `web` profile:
+#   dsh web --profile web --patch ./dev/patch.yml --port 6280 --no-open
+# The package must be resolvable from the profile's node_modules: link it with
+#   ln -s "$PWD" ~/.dsh/profiles/web/node_modules/@ceasarxuu/dsh-better-push
+- insert:
+    - id: better-push
+      name: '@ceasarxuu/dsh-better-push'
+      config:
+        enabled: true
+        whenBackgroundOnly: false
+        sound: false

@@ -1,0 +1,70 @@
+{
+  "name": "@ceasarxuu/dsh-better-push",
+  "version": "0.1.0",
+  "description": "macOS system notifications for DeepSeek Harness: turn finished, approval waiting, questions, errors, background jobs, subagents and workflows \u2014 with click-to-open-session, per-event switches and a background-only default.",
+  "type": "module",
+  "license": "MIT",
+  "author": "ceasarXuu",
+  "homepage": "https://github.com/ceasarXuu/dsh-better-push#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ceasarXuu/dsh-better-push.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ceasarXuu/dsh-better-push/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "notification",
+    "macos",
+    "notify",
+    "push",
+    "alert"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.3 <0.3.0",
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check index.js && node --check client.js",
+    "verify:client": "node dev/verify-client.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.5"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}
