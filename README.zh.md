@@ -35,11 +35,16 @@ agent 向你提问、出错、后台任务 / 子代理 / 工作流结束时，ma
 需要 **DeepSeek Harness 0.2.1-rc.3 及以上（低于 0.3.0）**、**macOS**，并且有
 桌面端或 Web 界面。
 
-- **插件管理器：** 设置 → 插件 → 添加 → `@ceasarxuu/dsh-better-push`，保持启用。
+目前**没有发布到 npm**，这个 GitHub 仓库就是分发渠道，下面两种方式都直接从
+GitHub 安装。
+
+- **插件管理器：** 设置 → 插件 → 添加 → 粘贴
+  `https://github.com/ceasarXuu/dsh-better-push`（也接受
+  `github:ceasarXuu/dsh-better-push`），然后保持启用。
 - **命令行：** 先完全退出应用（运行期间 profile 会被锁定），然后：
 
   ```sh
-  dsh plugin --profile desktop add @ceasarxuu/dsh-better-push
+  dsh plugin --profile desktop add github:ceasarXuu/dsh-better-push
   ```
 
   从本地目录安装用绝对路径：

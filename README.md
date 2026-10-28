@@ -38,12 +38,16 @@ actually left running in the background pings you.
 Requires **DeepSeek Harness 0.2.1-rc.3 or newer (below 0.3.0)** on **macOS**,
 with the desktop or web surface.
 
-- **Plugin Manager:** Settings → Plugins → Add → `@ceasarxuu/dsh-better-push`,
-  then keep it enabled.
+This repository is the distribution for now — the plugin is **not published to
+npm yet**. Both install paths below take the package straight from GitHub.
+
+- **Plugin Manager:** Settings → Plugins → Add → paste
+  `https://github.com/ceasarXuu/dsh-better-push` (the manager also accepts
+  `github:ceasarXuu/dsh-better-push`), then keep it enabled.
 - **CLI:** quit the app first (the profile is locked while it runs), then:
 
   ```sh
-  dsh plugin --profile desktop add @ceasarxuu/dsh-better-push
+  dsh plugin --profile desktop add github:ceasarXuu/dsh-better-push
   ```
 
   From a local checkout, `dsh plugin --profile desktop add /absolute/path/to/dsh-better-push`
