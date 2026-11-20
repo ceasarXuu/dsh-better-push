@@ -36,6 +36,7 @@
 import { execFile } from 'node:child_process'
 import { basename } from 'node:path'
 import Schema from '@deepseek-ai/schemastery'
+import manifest from './package.json' with { type: 'json' }
 
 /** Cordis plugin name (also the `name` of the row in `cordis.patch.yml`). */
 export const name = 'better-push'
@@ -306,6 +307,7 @@ export function fallbackCopy(item, config) {
  * Build the mutable notifier state for one plugin instance.
  * @param config - validated plugin configuration.
  * @param options.deliver - fallback delivery hook (tests replace it).
+ * @param options.maidSessionId - current canonical Maid session when available.
  */
 export function createState(config, options = {}) {
   const state = {
@@ -317,8 +319,9 @@ export function createState(config, options = {}) {
     counter: 0,
     /** Buffered notifications waiting for an attached client. */
     items: [],
-    /** clientId → { seen: epoch ms, permission: 'granted' | 'denied' | 'default' }. */
+    /** clientId → last presence, renderer permission and navigation availability. */
     clients: new Map(),
+    maidSessionId: options.maidSessionId ?? (() => undefined),
     /** sessionId → Session title, fed by the `session/title` event. */
     titles: new Map(),
     /** sessionId → the few header fields needed to resolve a click target. */
@@ -435,11 +438,14 @@ export function pushNotification(state, spec, now = Date.now()) {
   }
   state.dedupe.set(key, now)
 
+  const target = spec.openSessionId ?? spec.sessionId
+  const backgroundOnly = spec.kind !== 'test' && target !== undefined && target === state.maidSessionId()
   const item = {
     id: state.counter + 1,
     at: now,
     sound: config.sound !== false,
     ...spec,
+    ...(backgroundOnly ? { backgroundOnly: true } : {}),
   }
   state.counter = item.id
   if (spec.kind === 'approval' && typeof spec.approvalId === 'string') state.approvals.set(spec.approvalId, item.id)
@@ -447,6 +453,10 @@ export function pushNotification(state, spec, now = Date.now()) {
 
   if (clientChannelUsable(state)) {
     state.pushedCount += 1
+    return item
+  }
+  if (backgroundOnly && activeClients(state).some(client => client.desktopFocused)) {
+    state.lastSkip = 'maid-foreground'
     return item
   }
   if (config.fallbackWhenNoClient !== false) {
@@ -727,7 +737,7 @@ async function readJson(req, limit = 16 * 1024) {
 export function stateSnapshot(state) {
   return {
     name,
-    version: '0.1.0',
+    version: manifest.version,
     loadedAt: state.createdAt,
     config: publicConfig(state),
     clients: activeClients(state).length,
@@ -761,7 +771,8 @@ export async function handleRequest(state, ctx, req, res) {
     // `ws=1` reports that the renderer found the workspace-navigation service,
     // which is what a notification click needs to open the Session.
     const workspace = url.searchParams.get('ws') === '1'
-    state.clients.set(clientId, { seen: Date.now(), permission, workspace })
+    const desktopFocused = url.searchParams.get('desktopFocused') === '1'
+    state.clients.set(clientId, { seen: Date.now(), permission, workspace, desktopFocused })
     const latest = state.counter
     // A fresh client starts at the current cursor: stale notifications must not
     // replay after a reload.
@@ -825,7 +836,7 @@ export async function handleRequest(state, ctx, req, res) {
  * @param config - validated {@link Config} value.
  */
 export function apply(ctx, config) {
-  const state = createState(config)
+  const state = createState(config, { maidSessionId: () => ctx.get?.('maidConversation')?.sessionId })
 
   ctx.on('session/created', (session) => {
     rememberSession(state, session)

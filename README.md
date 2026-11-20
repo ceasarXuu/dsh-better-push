@@ -105,6 +105,9 @@ and the browser half picks the new policy up on its next poll.
 | `fallbackWhenNoClient` | `true` | Use `osascript` when no app window is attached (window closed). |
 | `fallbackSoundName` | `Glass` | Sound used by the `osascript` fallback. |
 
+Maid notifications appear when DSH is in the background. The foreground switch
+applies to ordinary sessions, and the explicit test button always allows a preview.
+
 ## How it works
 
 Two halves, one package:

@@ -727,7 +727,7 @@ window.__ModuleLoader__.load({
         if (config.enabled === false) return
         // An explicit test is expected right now, even with foreground
         // notifications switched off.
-        if (item.kind !== 'test' && config.notifyInForeground === false && windowIsFocused()) return
+        if (item.kind !== 'test' && (item.backgroundOnly === true || config.notifyInForeground === false) && windowIsFocused()) return
         if (permissionOf() !== 'granted') return
         const key = replacePrevious(item)
         try {
@@ -790,6 +790,7 @@ window.__ModuleLoader__.load({
             since: String(cursor),
             permission: permissionOf(),
             ws: workspace === undefined ? '0' : '1',
+            desktopFocused: document.documentElement?.hasAttribute('data-platform') && windowIsFocused() ? '1' : '0',
           })
           const response = await fetch(`${API}/poll?${query.toString()}`, {
             credentials: 'same-origin',

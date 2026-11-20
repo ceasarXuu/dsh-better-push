@@ -1,6 +1,6 @@
 {
   "name": "@ceasarxuu/dsh-better-push",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "macOS system notifications for DeepSeek Harness: turn finished, approval waiting, questions, errors, background jobs, subagents and workflows \u2014 with click-to-open-session, per-event switches and a background-only default.",
   "type": "module",
   "license": "MIT",

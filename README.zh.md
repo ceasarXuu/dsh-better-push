@@ -96,6 +96,8 @@ dsh plugin --profile desktop add /绝对路径/dsh-better-push
 | `fallbackWhenNoClient` | `true` | 没有窗口连接（窗口已关闭）时改用 `osascript` 兜底。 |
 | `fallbackSoundName` | `Glass` | 兜底通知使用的声音。 |
 
+Maid 的系统通知在 DSH 退到后台时显示。「窗口在前台时也通知」控制普通会话，测试通知可在前台预览。
+
 ## 工作原理
 
 一个包，两个半边：
